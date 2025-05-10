@@ -7,38 +7,38 @@ TimePeriods:
       Comment: Testing
 
   - MothersDay:
-      Date: May 25
+      Date: May 11
       DaysBefore: 7
-      DaysAfter: 4
+      DaysAfter: 2
       Comment: Mother's Day
   - FathersDay:
-      Date: May 25
+      Date: June 15
       DaysBefore: 7
       DaysAfter: 0
       Comment: Mother's Day
   - Christmas:
       Date: December 25
       DaysBefore: 50
-      DaysAfter: 0
+      DaysAfter: 7
   - Easter:
-      Date: April 1
+      Date: April 20
       DaysBefore: 7
-      DaysAfter: 0
+      DaysAfter: 5
 
   - Spring:
-      Date: April 1
-      DaysBefore: 7
-      DaysAfter: 0
+      Date: March 1
+      DaysBefore: 0
+      DaysAfter: 90
   - Summer:
-      Date: April 1
-      DaysBefore: 7
-      DaysAfter: 0
+      Date: June 20
+      DaysBefore: 0
+      DaysAfter: 90
   - Fall:
-      Date: April 1
-      DaysBefore: 7
-      DaysAfter: 0
+      Date: September 1
+      DaysBefore: 0
+      DaysAfter: 90
   - Winter:
-      Date: April 1
-      DaysBefore: 7
-      DaysAfter: 0
+      Date: December 1
+      DaysBefore: 0
+      DaysAfter: 90
 
