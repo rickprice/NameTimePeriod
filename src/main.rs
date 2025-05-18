@@ -12,7 +12,7 @@
 use clap::Parser;
 use chrono::{Datelike, NaiveDate, Utc, Weekday};
 use serde::Deserialize;
-use std::collections::HashMap;
+use std::collections::VecDeque;
 use std::fs::{create_dir_all, read_to_string, write};
 use std::path::Path;
 use std::str::FromStr;
@@ -21,7 +21,7 @@ use regex::Regex;
 /// CLI tool to determine if today's date falls within a configured time period.
 #[derive(Parser)]
 #[command(name = "TimePeriodChecker")]
-#[command(author = "Your Name")]
+#[command(author = "Frederick Price")]
 #[command(version = "1.0")]
 #[command(about = "Checks what time period a date falls into based on YAML configs", long_about = None)]
 struct Cli {
@@ -92,10 +92,7 @@ fn main() {
     write_user_config(&user_path, false);
 
     let mut merged = load_yaml_file(system_path);
-    let user_data = load_yaml_file(&user_path);
-    for (k, v) in user_data {
-        merged.insert(k, v);
-    }
+    merged.extend(load_yaml_file(&user_path));
 
     println!("{}", get_current_period(&merged, current_date));
 }
@@ -130,14 +127,21 @@ fn write_user_config(path: &str, force: bool) {
     }
 }
 
-fn load_yaml_file(path: &str) -> HashMap<String, TimePeriod> {
-    let mut periods = HashMap::new();
+fn load_yaml_file(path: &str) -> VecDeque<(String, TimePeriod)> {
+    let mut periods = VecDeque::new();
     if let Ok(content) = read_to_string(path) {
-        if let Ok(doc) = serde_yaml::from_str::<HashMap<String, Vec<HashMap<String, TimePeriod>>>>(&content) {
-            if let Some(tp) = doc.get("TimePeriods") {
-                for item in tp {
-                    for (name, value) in item {
-                        periods.insert(name.clone(), value.clone());
+        if let Ok(doc) = serde_yaml::from_str::<serde_yaml::Value>(&content) {
+            if let Some(arr) = doc.get("TimePeriods").and_then(|tp| tp.as_sequence()) {
+                for entry in arr {
+                    if let Some(map) = entry.as_mapping() {
+                        for (k, v) in map {
+                            if let (Some(name), Ok(tp)) = (
+                                k.as_str(),
+                                serde_yaml::from_value::<TimePeriod>(v.clone()),
+                            ) {
+                                periods.push_back((name.to_string(), tp));
+                            }
+                        }
                     }
                 }
             }
@@ -154,12 +158,11 @@ struct TimePeriod {
     days_before: i64,
     #[serde(rename = "DaysAfter")]
     days_after: i64,
-    // #[serde(default)]
     // #[serde(rename = "Comment")]
     // comment: Option<String>,
 }
 
-fn get_current_period(periods: &HashMap<String, TimePeriod>, current_date: NaiveDate) -> String {
+fn get_current_period(periods: &VecDeque<(String, TimePeriod)>, current_date: NaiveDate) -> String {
     for (name, period) in periods {
         if let Some(base_date) = parse_flexible_date(&period.date, current_date.year()) {
             let start = base_date - chrono::Duration::days(period.days_before);
