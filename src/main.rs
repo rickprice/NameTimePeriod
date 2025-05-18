@@ -71,7 +71,7 @@ const DEFAULT_CONFIG_YAML: &str = r#"TimePeriods:
       DaysAfter: 0
   - FrederickBirthday:
       Date: December 31
-      DaysBefore: 7
+      DaysBefore: 3
       DaysAfter: 0
 "#;
 
@@ -91,8 +91,10 @@ fn main() {
 
     write_user_config(&user_path, false);
 
-    let mut merged = load_yaml_file(system_path);
-    merged.extend(load_yaml_file(&user_path));
+    // let mut merged = load_yaml_file(system_path);
+    // merged.extend(load_yaml_file(&user_path));
+    let mut merged = load_yaml_file(&user_path);
+    merged.extend(load_yaml_file(system_path));
 
     println!("{}", get_current_period(&merged, current_date));
 }
