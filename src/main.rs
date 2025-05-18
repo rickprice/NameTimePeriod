@@ -160,8 +160,8 @@ struct TimePeriod {
     days_before: i64,
     #[serde(rename = "DaysAfter")]
     days_after: i64,
-    // #[serde(rename = "Comment")]
-    // comment: Option<String>,
+    #[serde(rename = "Comment")]
+    comment: Option<String>,
 }
 
 fn get_current_period(periods: &VecDeque<(String, TimePeriod)>, current_date: NaiveDate) -> String {
@@ -268,5 +268,100 @@ fn calculate_easter(year: i32) -> NaiveDate {
     let month = (h + l - 7 * m + 114) / 31;
     let day = ((h + l - 7 * m + 114) % 31) + 1;
     NaiveDate::from_ymd_opt(year, month as u32, day as u32).unwrap()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{NaiveDate, Weekday};
+    use std::collections::VecDeque;
+
+    #[test]
+    fn test_fixed_date_parsing() {
+        let date = parse_flexible_date("February 6", 2025);
+        assert_eq!(date, Some(NaiveDate::from_ymd_opt(2025, 2, 6).unwrap()));
+    }
+
+    #[test]
+    fn test_easter_date() {
+        let easter = calculate_easter(2025);
+        assert_eq!(easter, NaiveDate::from_ymd_opt(2025, 4, 20).unwrap());
+    }
+
+    #[test]
+    fn test_nth_weekday_of_month() {
+        let date = nth_weekday_of_month(2025, 5, Weekday::Sun, 2);
+        assert_eq!(date, Some(NaiveDate::from_ymd_opt(2025, 5, 11).unwrap())); // 2nd Sunday of May
+    }
+
+    #[test]
+    fn test_last_weekday_of_month() {
+        let date = last_weekday_of_month(2025, 5, Weekday::Mon);
+        assert_eq!(date, Some(NaiveDate::from_ymd_opt(2025, 5, 26).unwrap())); // Memorial Day
+    }
+
+    #[test]
+    fn test_parse_the_second_sunday() {
+        let date = parse_flexible_date("The second Sunday of May", 2025);
+        assert_eq!(date, Some(NaiveDate::from_ymd_opt(2025, 5, 11).unwrap()));
+    }
+
+    #[test]
+    fn test_parse_thanksgiving() {
+        let date = parse_flexible_date("Thanksgiving", 2025);
+        assert_eq!(date, Some(NaiveDate::from_ymd_opt(2025, 11, 27).unwrap())); // 4th Thursday of Nov
+    }
+
+    #[test]
+    fn test_get_current_period_match() {
+        let mut periods = VecDeque::new();
+        periods.push_back((
+            "MyPeriod".to_string(),
+            TimePeriod {
+                date: "February 6".to_string(),
+                days_before: 2,
+                days_after: 2,
+                comment: Some("Test".to_string()),
+            },
+        ));
+        let test_date = NaiveDate::from_ymd_opt(2025, 2, 5).unwrap();
+        assert_eq!(get_current_period(&periods, test_date), "MyPeriod");
+    }
+
+    #[test]
+    fn test_get_current_period_no_match() {
+        let mut periods = VecDeque::new();
+        periods.push_back((
+            "MyPeriod".to_string(),
+            TimePeriod {
+                date: "February 6".to_string(),
+                days_before: 2,
+                days_after: 2,
+                comment: Some("Test".to_string()),
+            },
+        ));
+        let test_date = NaiveDate::from_ymd_opt(2025, 3, 1).unwrap();
+        assert_eq!(get_current_period(&periods, test_date), "Default");
+    }
+
+    #[test]
+    fn test_yaml_deserialization() {
+        let yaml = r#"
+Date: Easter
+DaysBefore: 3
+DaysAfter: 2
+Comment: Easter celebration
+"#;
+        let tp: TimePeriod = serde_yaml::from_str(yaml).unwrap();
+        assert_eq!(tp.date, "Easter");
+        assert_eq!(tp.days_before, 3);
+        assert_eq!(tp.days_after, 2);
+        assert_eq!(tp.comment.as_deref(), Some("Easter celebration"));
+    }
+
+    #[test]
+    fn test_parse_invalid_flexible_date() {
+        assert_eq!(parse_flexible_date("Invalid date", 2025), None);
+    }
 }
 
