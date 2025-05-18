@@ -12,7 +12,6 @@
 use clap::Parser;
 use chrono::{Datelike, NaiveDate, Utc, Weekday};
 use serde::Deserialize;
-use serde_yaml::Value;
 use std::collections::HashMap;
 use std::fs::{create_dir_all, read_to_string, write};
 use std::path::Path;
@@ -149,18 +148,22 @@ fn load_yaml_file(path: &str) -> HashMap<String, TimePeriod> {
 
 #[derive(Debug, Clone, Deserialize)]
 struct TimePeriod {
-    Date: String,
-    DaysBefore: i64,
-    DaysAfter: i64,
-    #[serde(default)]
-    Comment: Option<String>,
+    #[serde(rename = "Date")]
+    date: String,
+    #[serde(rename = "DaysBefore")]
+    days_before: i64,
+    #[serde(rename = "DaysAfter")]
+    days_after: i64,
+    // #[serde(default)]
+    // #[serde(rename = "Comment")]
+    // comment: Option<String>,
 }
 
 fn get_current_period(periods: &HashMap<String, TimePeriod>, current_date: NaiveDate) -> String {
     for (name, period) in periods {
-        if let Some(base_date) = parse_flexible_date(&period.Date, current_date.year()) {
-            let start = base_date - chrono::Duration::days(period.DaysBefore);
-            let end = base_date + chrono::Duration::days(period.DaysAfter);
+        if let Some(base_date) = parse_flexible_date(&period.date, current_date.year()) {
+            let start = base_date - chrono::Duration::days(period.days_before);
+            let end = base_date + chrono::Duration::days(period.days_after);
             if current_date >= start && current_date <= end {
                 return name.clone();
             }
