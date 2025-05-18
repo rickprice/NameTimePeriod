@@ -102,7 +102,8 @@ fn main() {
 }
 
 fn get_user_config_path() -> Option<String> {
-    dirs::home_dir().map(|p| p.join(".config/NameTimePeriod/time_periods.yaml").to_str()?.to_string())
+    dirs::home_dir()
+        .and_then(|p| p.join(".config/NameTimePeriod/time_periods.yaml").to_str().map(|s| s.to_string()))
 }
 
 fn write_user_config(path: &str, force: bool) {
