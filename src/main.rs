@@ -1,4 +1,4 @@
-#!/usr/bin/env rust-script
+// #!/usr/bin/env rust-script
 //! ```cargo
 //! [dependencies]
 //! chrono = { version = "0.4", features = ["serde"] }
@@ -16,6 +16,7 @@ use serde_yaml::Value;
 use std::collections::HashMap;
 use std::fs::{create_dir_all, read_to_string, write};
 use std::path::Path;
+use std::str::FromStr;
 use regex::Regex;
 
 /// CLI tool to determine if today's date falls within a configured time period.
