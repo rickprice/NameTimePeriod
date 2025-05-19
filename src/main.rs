@@ -166,8 +166,8 @@ struct TimePeriod {
     days_before: i64,
     #[serde(rename = "DaysAfter")]
     days_after: i64,
-    #[serde(rename = "Comment")]
-    comment: Option<String>,
+    // #[serde(rename = "Comment")]
+    // comment: Option<String>,
 }
 
 fn get_current_period(periods: &VecDeque<(String, TimePeriod)>, current_date: NaiveDate) -> String {
@@ -327,7 +327,7 @@ mod tests {
                 date: "February 6".to_string(),
                 days_before: 2,
                 days_after: 2,
-                comment: Some("Test".to_string()),
+                // comment: Some("Test".to_string()),
             },
         ));
         let test_date = NaiveDate::from_ymd_opt(2025, 2, 5).unwrap();
@@ -343,7 +343,7 @@ mod tests {
                 date: "February 6".to_string(),
                 days_before: 2,
                 days_after: 2,
-                comment: Some("Test".to_string()),
+                // comment: Some("Test".to_string()),
             },
         ));
         let test_date = NaiveDate::from_ymd_opt(2025, 3, 1).unwrap();
@@ -362,7 +362,7 @@ Comment: Easter celebration
         assert_eq!(tp.date, "Easter");
         assert_eq!(tp.days_before, 3);
         assert_eq!(tp.days_after, 2);
-        assert_eq!(tp.comment.as_deref(), Some("Easter celebration"));
+        // assert_eq!(tp.comment.as_deref(), Some("Easter celebration"));
     }
 
     #[test]
