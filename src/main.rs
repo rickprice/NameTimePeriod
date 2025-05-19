@@ -9,14 +9,14 @@
 //! serde_yaml = "0.9"
 //! ```
 
-use clap::Parser;
 use chrono::{Datelike, NaiveDate, Utc, Weekday};
+use clap::Parser;
+use regex::Regex;
 use serde::Deserialize;
 use std::collections::VecDeque;
 use std::fs::{create_dir_all, read_to_string, write};
 use std::path::Path;
 use std::str::FromStr;
-use regex::Regex;
 
 /// CLI tool to determine if today's date falls within a configured time period.
 #[derive(Parser)]
@@ -100,8 +100,11 @@ fn main() {
 }
 
 fn get_user_config_path() -> Option<String> {
-    dirs::home_dir()
-        .and_then(|p| p.join(".config/NameTimePeriod/time_periods.yaml").to_str().map(|s| s.to_string()))
+    dirs::home_dir().and_then(|p| {
+        p.join(".config/NameTimePeriod/time_periods.yaml")
+            .to_str()
+            .map(|s| s.to_string())
+    })
 }
 
 fn write_user_config(path: &str, force: bool) {
@@ -113,7 +116,11 @@ fn write_user_config(path: &str, force: bool) {
     if let Some(parent) = config_path.parent() {
         if !parent.exists() {
             if let Err(e) = create_dir_all(parent) {
-                eprintln!("Failed to create config directory {}: {}", parent.display(), e);
+                eprintln!(
+                    "Failed to create config directory {}: {}",
+                    parent.display(),
+                    e
+                );
                 return;
             }
         }
@@ -137,10 +144,9 @@ fn load_yaml_file(path: &str) -> VecDeque<(String, TimePeriod)> {
                 for entry in arr {
                     if let Some(map) = entry.as_mapping() {
                         for (k, v) in map {
-                            if let (Some(name), Ok(tp)) = (
-                                k.as_str(),
-                                serde_yaml::from_value::<TimePeriod>(v.clone()),
-                            ) {
+                            if let (Some(name), Ok(tp)) =
+                                (k.as_str(), serde_yaml::from_value::<TimePeriod>(v.clone()))
+                            {
                                 periods.push_back((name.to_string(), tp));
                             }
                         }
@@ -364,4 +370,3 @@ Comment: Easter celebration
         assert_eq!(parse_flexible_date("Invalid date", 2025), None);
     }
 }
-
