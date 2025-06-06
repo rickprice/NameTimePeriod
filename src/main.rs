@@ -13,9 +13,8 @@ use chrono::{Datelike, NaiveDate, Utc, Weekday};
 use clap::Parser;
 use regex::Regex;
 use serde::Deserialize;
-use std::collections::VecDeque;
 use std::fs::{create_dir_all, read_to_string, write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 /// CLI tool to determine if today's date falls within a configured time period.
@@ -79,36 +78,38 @@ fn main() {
     let cli = Cli::parse();
 
     if cli.init {
-        let user_path = get_user_config_path().unwrap_or_default();
-        write_user_config(&user_path, true);
+        if let Some(user_path) = get_user_config_path() {
+            write_user_config(&user_path, true);
+        } else {
+            eprintln!("Error: Could not determine user config path");
+        }
         return;
     }
 
     let current_date = cli.date.unwrap_or_else(|| Utc::now().date_naive());
 
     let system_path = "/etc/NameTimePeriod/time_periods.yaml";
-    let user_path = get_user_config_path().unwrap_or_default();
+    let user_path = get_user_config_path();
 
-    write_user_config(&user_path, false);
+    if let Some(ref path) = user_path {
+        write_user_config(path, false);
+    }
 
-    // let mut merged = load_yaml_file(system_path);
-    // merged.extend(load_yaml_file(&user_path));
-    let mut merged = load_yaml_file(&user_path);
-    merged.extend(load_yaml_file(system_path));
+    let mut merged = Vec::new();
+    if let Some(ref path) = user_path {
+        merged.extend(load_yaml_file(path));
+    }
+    merged.extend(load_yaml_file(Path::new(system_path)));
 
     println!("{}", get_current_period(&merged, current_date));
 }
 
-fn get_user_config_path() -> Option<String> {
-    dirs::home_dir().and_then(|p| {
-        p.join(".config/NameTimePeriod/time_periods.yaml")
-            .to_str()
-            .map(|s| s.to_string())
-    })
+fn get_user_config_path() -> Option<PathBuf> {
+    dirs::home_dir().map(|p| p.join(".config/NameTimePeriod/time_periods.yaml"))
 }
 
-fn write_user_config(path: &str, force: bool) {
-    let config_path = Path::new(path);
+fn write_user_config(path: &Path, force: bool) {
+    let config_path = path;
     if config_path.exists() && !force {
         return;
     }
@@ -130,14 +131,14 @@ fn write_user_config(path: &str, force: bool) {
         Ok(_) => println!(
             "Default user config {}written to {}",
             if force { "(force) " } else { "" },
-            path
+            path.display()
         ),
         Err(e) => eprintln!("Failed to write user config: {}", e),
     }
 }
 
-fn load_yaml_file(path: &str) -> VecDeque<(String, TimePeriod)> {
-    let mut periods = VecDeque::new();
+fn load_yaml_file(path: &Path) -> Vec<(String, TimePeriod)> {
+    let mut periods = Vec::new();
     if let Ok(content) = read_to_string(path) {
         if let Ok(doc) = serde_yaml::from_str::<serde_yaml::Value>(&content) {
             if let Some(arr) = doc.get("TimePeriods").and_then(|tp| tp.as_sequence()) {
@@ -147,7 +148,7 @@ fn load_yaml_file(path: &str) -> VecDeque<(String, TimePeriod)> {
                             if let (Some(name), Ok(tp)) =
                                 (k.as_str(), serde_yaml::from_value::<TimePeriod>(v.clone()))
                             {
-                                periods.push_back((name.to_string(), tp));
+                                periods.push((name.to_string(), tp));
                             }
                         }
                     }
@@ -170,7 +171,7 @@ struct TimePeriod {
     // comment: Option<String>,
 }
 
-fn get_current_period(periods: &VecDeque<(String, TimePeriod)>, current_date: NaiveDate) -> String {
+fn get_current_period(periods: &[(String, TimePeriod)], current_date: NaiveDate) -> String {
     for (name, period) in periods {
         if let Some(base_date) = parse_flexible_date(&period.date, current_date.year()) {
             let start = base_date - chrono::Duration::days(period.days_before);
@@ -195,7 +196,7 @@ fn parse_flexible_date(date_str: &str, year: i32) -> Option<NaiveDate> {
         _ => {}
     }
 
-    let re = Regex::new(r"(?i)the\s+(\w+)\s+(\w+)\s+of\s+(\w+)").unwrap();
+    let re = Regex::new(r"(?i)the\s+(\w+)\s+(\w+)\s+of\s+(\w+)").expect("Invalid regex pattern");
     if let Some(cap) = re.captures(date_str) {
         let ordinal = &cap[1];
         let weekday_str = &cap[2];
@@ -273,14 +274,14 @@ fn calculate_easter(year: i32) -> NaiveDate {
     let m = (a + 11 * h + 22 * l) / 451;
     let month = (h + l - 7 * m + 114) / 31;
     let day = ((h + l - 7 * m + 114) % 31) + 1;
-    NaiveDate::from_ymd_opt(year, month as u32, day as u32).unwrap()
+    NaiveDate::from_ymd_opt(year, month as u32, day as u32)
+        .expect("Invalid Easter date calculation")
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use chrono::{NaiveDate, Weekday};
-    use std::collections::VecDeque;
 
     #[test]
     fn test_fixed_date_parsing() {
@@ -320,8 +321,8 @@ mod tests {
 
     #[test]
     fn test_get_current_period_match() {
-        let mut periods = VecDeque::new();
-        periods.push_back((
+        let mut periods = Vec::new();
+        periods.push((
             "MyPeriod".to_string(),
             TimePeriod {
                 date: "February 6".to_string(),
@@ -336,8 +337,8 @@ mod tests {
 
     #[test]
     fn test_get_current_period_no_match() {
-        let mut periods = VecDeque::new();
-        periods.push_back((
+        let mut periods = Vec::new();
+        periods.push((
             "MyPeriod".to_string(),
             TimePeriod {
                 date: "February 6".to_string(),
