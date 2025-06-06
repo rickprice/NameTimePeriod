@@ -16,7 +16,7 @@ use serde::Deserialize;
 use std::fs::{create_dir_all, read_to_string, write};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-
+///
 /// CLI tool to determine if today's date falls within a configured time period.
 #[derive(Parser)]
 #[command(name = "TimePeriodChecker")]
@@ -56,22 +56,6 @@ const DEFAULT_CONFIG_YAML: &str = r#"TimePeriods:
       Date: LaborDay
       DaysBefore: 1
       DaysAfter: 2
-  - MLKReflection:
-      Date: MLKDay
-      DaysBefore: 0
-      DaysAfter: 1
-  - TamaraBirthday:
-      Date: February 6
-      DaysBefore: 7
-      DaysAfter: 0
-  - EricBirthday:
-      Date: August 29
-      DaysBefore: 7
-      DaysAfter: 0
-  - FrederickBirthday:
-      Date: December 31
-      DaysBefore: 3
-      DaysAfter: 0
 "#;
 
 fn main() {
@@ -91,8 +75,12 @@ fn main() {
     let system_path = "/etc/NameTimePeriod/time_periods.yaml";
     let user_path = get_user_config_path();
 
+    // Only create user config if both system and user configs don't exist
     if let Some(ref path) = user_path {
-        write_user_config(path, false);
+        let system_path_buf = Path::new(system_path);
+        if !system_path_buf.exists() && !path.exists() {
+            write_user_config(path, false);
+        }
     }
 
     let mut merged = Vec::new();
@@ -109,12 +97,11 @@ fn get_user_config_path() -> Option<PathBuf> {
 }
 
 fn write_user_config(path: &Path, force: bool) {
-    let config_path = path;
-    if config_path.exists() && !force {
+    if path.exists() && !force {
         return;
     }
 
-    if let Some(parent) = config_path.parent() {
+    if let Some(parent) = path.parent() {
         if !parent.exists() {
             if let Err(e) = create_dir_all(parent) {
                 eprintln!(
@@ -127,7 +114,7 @@ fn write_user_config(path: &Path, force: bool) {
         }
     }
 
-    match write(config_path, DEFAULT_CONFIG_YAML) {
+    match write(path, DEFAULT_CONFIG_YAML) {
         Ok(_) => println!(
             "Default user config {}written to {}",
             if force { "(force) " } else { "" },
@@ -138,25 +125,24 @@ fn write_user_config(path: &Path, force: bool) {
 }
 
 fn load_yaml_file(path: &Path) -> Vec<(String, TimePeriod)> {
+    load_yaml_file_inner(path).unwrap_or_default()
+}
+
+fn load_yaml_file_inner(path: &Path) -> Option<Vec<(String, TimePeriod)>> {
+    let content = read_to_string(path).ok()?;
+    let doc: serde_yaml::Value = serde_yaml::from_str(&content).ok()?;
+    let arr = doc.get("TimePeriods")?.as_sequence()?;
+    
     let mut periods = Vec::new();
-    if let Ok(content) = read_to_string(path) {
-        if let Ok(doc) = serde_yaml::from_str::<serde_yaml::Value>(&content) {
-            if let Some(arr) = doc.get("TimePeriods").and_then(|tp| tp.as_sequence()) {
-                for entry in arr {
-                    if let Some(map) = entry.as_mapping() {
-                        for (k, v) in map {
-                            if let (Some(name), Ok(tp)) =
-                                (k.as_str(), serde_yaml::from_value::<TimePeriod>(v.clone()))
-                            {
-                                periods.push((name.to_string(), tp));
-                            }
-                        }
-                    }
-                }
+    for entry in arr {
+        let map = entry.as_mapping()?;
+        for (k, v) in map {
+            if let (Some(name), Ok(tp)) = (k.as_str(), serde_yaml::from_value::<TimePeriod>(v.clone())) {
+                periods.push((name.to_string(), tp));
             }
         }
     }
-    periods
+    Some(periods)
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -171,66 +157,64 @@ struct TimePeriod {
     // comment: Option<String>,
 }
 
-fn get_current_period(periods: &[(String, TimePeriod)], current_date: NaiveDate) -> String {
+fn get_current_period(periods: &[(String, TimePeriod)], current_date: NaiveDate) -> &str {
     for (name, period) in periods {
         if let Some(base_date) = parse_flexible_date(&period.date, current_date.year()) {
             let start = base_date - chrono::Duration::days(period.days_before);
             let end = base_date + chrono::Duration::days(period.days_after);
-            if current_date >= start && current_date <= end {
-                return name.clone();
+            if (start..=end).contains(&current_date) {
+                return name;
             }
         }
     }
-    "Default".to_string()
+    "Default"
 }
 
 fn parse_flexible_date(date_str: &str, year: i32) -> Option<NaiveDate> {
     let lower = date_str.trim().to_lowercase();
 
     match lower.as_str() {
-        "easter" => return Some(calculate_easter(year)),
-        "thanksgiving" => return nth_weekday_of_month(year, 11, Weekday::Thu, 4),
-        "laborday" => return nth_weekday_of_month(year, 9, Weekday::Mon, 1),
-        "memorialday" => return last_weekday_of_month(year, 5, Weekday::Mon),
-        "mlkday" => return nth_weekday_of_month(year, 1, Weekday::Mon, 3),
-        _ => {}
-    }
+        "easter" => Some(calculate_easter(year)),
+        "thanksgiving" => nth_weekday_of_month(year, 11, Weekday::Thu, 4),
+        "laborday" => nth_weekday_of_month(year, 9, Weekday::Mon, 1),
+        "memorialday" => last_weekday_of_month(year, 5, Weekday::Mon),
+        "mlkday" => nth_weekday_of_month(year, 1, Weekday::Mon, 3),
+        _ => None,
+    }.or_else(|| {
 
-    let re = Regex::new(r"(?i)the\s+(\w+)\s+(\w+)\s+of\s+(\w+)").expect("Invalid regex pattern");
-    if let Some(cap) = re.captures(date_str) {
-        let ordinal = &cap[1];
-        let weekday_str = &cap[2];
-        let month_str = &cap[3];
+        let re = Regex::new(r"(?i)the\s+(\w+)\s+(\w+)\s+of\s+(\w+)").expect("Invalid regex pattern");
+        if let Some(cap) = re.captures(date_str) {
+            let ordinal = &cap[1];
+            let weekday_str = &cap[2];
+            let month_str = &cap[3];
 
-        let nth = match ordinal.to_lowercase().as_str() {
-            "first" => 1,
-            "second" => 2,
-            "third" => 3,
-            "fourth" => 4,
-            "fifth" => 5,
-            _ => return None,
-        };
+            let nth = match ordinal.to_lowercase().as_str() {
+                "first" => 1,
+                "second" => 2,
+                "third" => 3,
+                "fourth" => 4,
+                "fifth" => 5,
+                _ => return None,
+            };
 
-        let weekday = match weekday_str.to_lowercase().as_str() {
-            "monday" => Weekday::Mon,
-            "tuesday" => Weekday::Tue,
-            "wednesday" => Weekday::Wed,
-            "thursday" => Weekday::Thu,
-            "friday" => Weekday::Fri,
-            "saturday" => Weekday::Sat,
-            "sunday" => Weekday::Sun,
-            _ => return None,
-        };
+            let weekday = match weekday_str.to_lowercase().as_str() {
+                "monday" => Weekday::Mon,
+                "tuesday" => Weekday::Tue,
+                "wednesday" => Weekday::Wed,
+                "thursday" => Weekday::Thu,
+                "friday" => Weekday::Fri,
+                "saturday" => Weekday::Sat,
+                "sunday" => Weekday::Sun,
+                _ => return None,
+            };
 
-        let month = match chrono::Month::from_str(month_str) {
-            Ok(m) => m.number_from_month(),
-            Err(_) => return None,
-        };
+            let month = chrono::Month::from_str(month_str).ok()?.number_from_month();
 
-        return nth_weekday_of_month(year, month, weekday, nth);
-    }
-
-    NaiveDate::parse_from_str(&format!("{} {}", date_str, year), "%B %d %Y").ok()
+            nth_weekday_of_month(year, month, weekday, nth)
+        } else {
+            NaiveDate::parse_from_str(&format!("{} {}", date_str, year), "%B %d %Y").ok()
+        }
+    })
 }
 
 fn nth_weekday_of_month(year: i32, month: u32, weekday: Weekday, nth: i64) -> Option<NaiveDate> {
