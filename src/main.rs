@@ -357,7 +357,7 @@ mod tests {
             },
         ));
         let test_date = NaiveDate::from_ymd_opt(2025, 2, 6).unwrap();
-        assert_eq!(get_current_period(&periods, test_date), "Period1, Period2");
+        assert_eq!(get_current_period(&periods, test_date), "Period1 Period2");
     }
 
     #[test]
