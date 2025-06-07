@@ -1,10 +1,14 @@
 [package]
 name = "name_time_period"
 version = "0.2.0"
+authors = ["Frederick Price <fprice@pricemail.ca>"]
 edition = "2024"
-description = "CLI tool to check if a date falls in a defined time period"
-authors = ["Your Name <you@example.com>"]
 license = "MIT"
+description = "Name the time period a date is in, configuraiton is supported"
+homepage = "https://github.com/rickprice/NameTimePeriods"
+repository = "https://github.com/rickprice/NameTimePeriods"
+keywords = ["time"]
+categories = ["date-and-time"]
 
 [dependencies]
 chrono = { version = "0.4", features = ["serde"] }
